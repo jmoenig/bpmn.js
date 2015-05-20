@@ -9,6 +9,10 @@
 
 	Copyright (C) 2015 by Jens Mönig
 
+	demo clips:
+	* https://www.youtube.com/watch?v=NxLu3cM4I2Y
+	* https://www.youtube.com/watch?v=MEooRw9B8tA
+
 	bpmn.js is free software: you can redistribute it and/or modify
 	it under the terms of the GNU Affero General Public License as
 	published by the Free Software Foundation, either version 3 of
