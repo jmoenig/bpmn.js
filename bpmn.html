@@ -9,6 +9,7 @@
 
 			window.onload = function () {
 				world = new WorldMorph(document.getElementById('world'));
+                world.worldCanvas.focus();
                 frame = new FrameMorph();
                 frame.color = new Color(55, 55, 55);
                 frame.texture = 'bg.png';
@@ -24,12 +25,13 @@
                 start.setPosition(new Point(50, 50));
                 frame.add(start);
 				// world.isDevMode = true;
-				setInterval(loop, 1);
+                loop();
 			};
 
-			function loop() {
-				world.doOneCycle();
-			}
+            function loop() {
+                requestAnimationFrame(loop);
+                world.doOneCycle();
+            }
 		</script>
 	</head>
 	<body>
