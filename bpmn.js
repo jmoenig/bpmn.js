@@ -8,7 +8,7 @@
 	written by Jens Mönig
 	jens@moenig.org
 
-	Copyright (C) 2015 by Jens Mönig
+	Copyright (C) 2020 by Jens Mönig
 
 	bpmn.js is free software: you can redistribute it and/or modify
 	it under the terms of the GNU Affero General Public License as
@@ -75,7 +75,7 @@ isNil, Morph, newCanvas, radians, nop, detect, StringMorph*/
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.bpmn = '2015-Mai-20';
+modules.bpmn = '2020-July-11';
 
 var BPM_AnchorMorph;
 var BPM_EventMorph;
@@ -104,6 +104,23 @@ WorldMorph.prototype.customMorphs = function () {
     */
 	];
 
+};
+
+Morph.prototype.tweakMenu = function (aMenu) {
+    var handle;
+    handle = setInterval(function () {
+        aMenu.destroy();
+        clearInterval(handle);
+    }, 500);
+    aMenu.mouseEnter = function () {
+        clearInterval(handle);
+    };
+    aMenu.mouseLeave = function () {
+        handle = setInterval(function () {
+            aMenu.destroy();
+            clearInterval(handle);
+        }, 500);
+    };
 };
 
 // BPM_AnchorMorph ///////////////////////////////////////////////////
@@ -460,35 +477,26 @@ BPM_TaskMorph.prototype.reactToEdit = function () {
     this.label.clearSelection();
     this.label.disableSelecting();
     this.label.alignment = 'center';
-    this.label.drawNew();
+    this.label.fixLayout();
     this.label.changed();
 };
 
 BPM_TaskMorph.prototype.mouseEnter = function () {
-    if (this.world().isDevMode) {return; }
-    if (!isNil(this.world().hand.children[0])) {return; }
-    this.userMenu().popup(this.world(), this.topRight().add(new Point(5, 0)));
-};
-
-BPM_TaskMorph.prototype.mouseLeave = function () {
-    var menu, handle;
+    var menu;
     if (this.world().isDevMode) {return; }
     if (!isNil(this.world().hand.children[0])) {return; }
     menu = this.userMenu();
     menu.popup(this.world(), this.topRight().add(new Point(5, 0)));
-    handle = setInterval(function () {
-        menu.destroy();
-        clearInterval(handle);
-    }, 500);
-    menu.mouseEnter = function () {
-        clearInterval(handle);
-    };
-    menu.mouseLeave = function () {
-        handle = setInterval(function () {
-            menu.destroy();
-            clearInterval(handle);
-        }, 500);
-    };
+    this.tweakMenu(menu);
+};
+
+BPM_TaskMorph.prototype.mouseLeave = function () {
+    var menu;
+    if (this.world().isDevMode) {return; }
+    if (!isNil(this.world().hand.children[0])) {return; }
+    menu = this.userMenu();
+    menu.popup(this.world(), this.topRight().add(new Point(5, 0)));
+    this.tweakMenu(menu);
 };
 
 BPM_TaskMorph.prototype.wantsDropOf = function (aMorph) {
@@ -544,17 +552,15 @@ BPM_TaskMorph.prototype.justDropped = function () {
 
 // drawing
 
-BPM_TaskMorph.prototype.drawNew = function () {
-	var	context, gradient;
+BPM_TaskMorph.prototype.render = function (ctx) {
+	var gradient;
 
-	this.image = newCanvas(this.extent());
-	context = this.image.getContext('2d');
 	if ((this.edge === 0) && (this.border === 0)) {
-		BoxMorph.uber.drawNew.call(this);
+		BoxMorph.uber.render.call(this, ctx);
 		return null;
 	}
 
-    gradient = context.createLinearGradient(
+    gradient = ctx.createLinearGradient(
         0,
         0,
         0,
@@ -563,18 +569,18 @@ BPM_TaskMorph.prototype.drawNew = function () {
     gradient.addColorStop(0, this.color.lighter(20).toString());
     gradient.addColorStop(1, this.color.darker(20).toString());
 
-	context.fillStyle = gradient;
-	context.beginPath();
+	ctx.fillStyle = gradient;
+	ctx.beginPath();
 	this.outlinePath(
-		context,
+		ctx,
 		Math.max(this.edge - this.border, 0),
 		this.border
 	);
-	context.closePath();
-	context.fill();
+	ctx.closePath();
+	ctx.fill();
 
 
-    gradient = context.createLinearGradient(
+    gradient = ctx.createLinearGradient(
         0,
         this.height(),
         0,
@@ -583,12 +589,12 @@ BPM_TaskMorph.prototype.drawNew = function () {
     gradient.addColorStop(0, this.borderColor.toString());
     gradient.addColorStop(1, this.color.lighter(80).toString());
 	if (this.border > 0) {
-		context.lineWidth = this.border;
-		context.strokeStyle = gradient;
-		context.beginPath();
-		this.outlinePath(context, this.edge, this.border / 2);
-		context.closePath();
-		context.stroke();
+		ctx.lineWidth = this.border;
+		ctx.strokeStyle = gradient;
+		ctx.beginPath();
+		this.outlinePath(ctx, this.edge, this.border / 2);
+		ctx.closePath();
+		ctx.stroke();
 	}
 };
 
@@ -766,14 +772,14 @@ BPM_GatewayMorph.prototype.justDropped = function () {
 
 // drawing:
 
-BPM_GatewayMorph.prototype.outlinePath = function (context, radius, inset) {
+BPM_GatewayMorph.prototype.outlinePath = function (ctx, radius, inset) {
 	var	w = this.width(),
 		h = this.height();
     nop(radius);
-    context.moveTo(w / 2, inset);
-    context.lineTo(w - inset, h / 2);
-    context.lineTo(w / 2, h - inset);
-    context.lineTo(inset, h / 2);
+    ctx.moveTo(w / 2, inset);
+    ctx.lineTo(w - inset, h / 2);
+    ctx.lineTo(w / 2, h - inset);
+    ctx.lineTo(inset, h / 2);
 };
 
 // BPM_ParallelGatewayMorph /////////////////////////////////////////////////
@@ -1080,8 +1086,8 @@ BPM_EventMorph.prototype.justDropped = function () {
 
 // drawing
 
-BPM_EventMorph.prototype.drawNew
-    = BPM_TaskMorph.prototype.drawNew;
+BPM_EventMorph.prototype.render
+    = BPM_TaskMorph.prototype.render;
 
 // BPM_SequenceFlowMorph ///////////////////////////////////////////////////
 
@@ -1486,23 +1492,24 @@ BPM_SequenceFlowMorph.prototype.fixLayout = function () {
     this.path = path;
     this.changed();
     this.bounds = p1.corner(p2).expandBy(this.lineWidth);
-    this.drawNew();
+
+    // add shadow
+    this.removeShadow();
+    this.addShadow(new Point(1, 1), 0.5);
 };
 
-BPM_SequenceFlowMorph.prototype.drawNew = function () {
-    var context, points, i, pos = this.position(), r = this.radius;
+BPM_SequenceFlowMorph.prototype.render = function (ctx) {
+    var points, i, pos = this.position(), r = this.radius;
     if (this.path.length === 0) {return; }
-    this.image = newCanvas(this.extent());
-    context = this.image.getContext('2d');
-    context.strokeStyle = this.color.toString();
-    context.lineWidth = this.lineWidth;
-    context.fillStyle = context.strokeStyle;
+    ctx.strokeStyle = this.color.toString();
+    ctx.lineWidth = this.lineWidth;
+    ctx.fillStyle = ctx.strokeStyle;
     points = this.path.map(function (pt) {
         return pt.subtract(pos);
     });
 
     function rightUp(pt) {
-        context.arc(
+        ctx.arc(
             pt.x,
             pt.y - r,
             r,
@@ -1513,7 +1520,7 @@ BPM_SequenceFlowMorph.prototype.drawNew = function () {
     }
 
     function rightDown(pt) {
-        context.arc(
+        ctx.arc(
             pt.x,
             pt.y + r,
             r,
@@ -1524,7 +1531,7 @@ BPM_SequenceFlowMorph.prototype.drawNew = function () {
     }
 
     function leftUp(pt) {
-        context.arc(
+        ctx.arc(
             pt.x,
             pt.y - r,
             r,
@@ -1535,7 +1542,7 @@ BPM_SequenceFlowMorph.prototype.drawNew = function () {
     }
 
     function leftDown(pt) {
-        context.arc(
+        ctx.arc(
             pt.x,
             pt.y + r,
             r,
@@ -1546,7 +1553,7 @@ BPM_SequenceFlowMorph.prototype.drawNew = function () {
     }
 
     function upRight(pt) {
-        context.arc(
+        ctx.arc(
             pt.x + r,
             pt.y,
             r,
@@ -1557,7 +1564,7 @@ BPM_SequenceFlowMorph.prototype.drawNew = function () {
     }
 
     function upLeft(pt) {
-        context.arc(
+        ctx.arc(
             pt.x - r,
             pt.y,
             r,
@@ -1568,7 +1575,7 @@ BPM_SequenceFlowMorph.prototype.drawNew = function () {
     }
 
     function downRight(pt) {
-        context.arc(
+        ctx.arc(
             pt.x + r,
             pt.y,
             r,
@@ -1579,7 +1586,7 @@ BPM_SequenceFlowMorph.prototype.drawNew = function () {
     }
 
     function downLeft(pt) {
-        context.arc(
+        ctx.arc(
             pt.x - r,
             pt.y,
             r,
@@ -1625,42 +1632,38 @@ BPM_SequenceFlowMorph.prototype.drawNew = function () {
                 }
             }
 
-            context.moveTo(point.x, point.y);
+            ctx.moveTo(point.x, point.y);
         } else {
-            context.lineTo(point.x, point.y);
+            ctx.lineTo(point.x, point.y);
         }
     }
 
     // line
-    context.beginPath();
-    context.moveTo(points[0].x, points[0].y);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
 
     i = 1;
     if (this.isConditionalFlow()) {
         for (i = 1; i < 4; i += 1) {
-            context.lineTo(points[i].x, points[i].y);
+            ctx.lineTo(points[i].x, points[i].y);
         }
-        context.fill();
-        context.moveTo(points[4].x, points[4].y);
+        ctx.fill();
+        ctx.moveTo(points[4].x, points[4].y);
         i = 5;
     }
 
     for (i; i < points.length - 3; i += 1) {
         drawSegment(i);
     }
-    context.stroke();
+    ctx.stroke();
 
     // arrow head
-    context.beginPath();
-    context.moveTo(points[points.length - 1].x, points[points.length - 1].y);
-    context.lineTo(points[points.length - 2].x, points[points.length - 2].y);
-    context.lineTo(points[points.length - 3].x, points[points.length - 3].y);
-    context.closePath();
-    context.fill();
-
-    // add shadow
-    this.removeShadow();
-    this.addShadow(new Point(1, 1), 0.5);
+    ctx.beginPath();
+    ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
+    ctx.lineTo(points[points.length - 2].x, points[points.length - 2].y);
+    ctx.lineTo(points[points.length - 3].x, points[points.length - 3].y);
+    ctx.closePath();
+    ctx.fill();
 };
 
 BPM_SequenceFlowMorph.prototype.isConditionalFlow = function () {
@@ -1717,22 +1720,17 @@ BPM_LaneMorph.prototype.fullCopy = function () {
 };
 
 BPM_LaneMorph.prototype.layoutChanged = function () {
-    this.drawNew();
-};
-
-BPM_LaneMorph.prototype.drawNew = function () {
-    this.fixLayout();
-    BPM_LaneMorph.uber.drawNew.call(this);
+    this.rerender();
 };
 
 BPM_LaneMorph.prototype.fixLayout = function () {
     if (!this.label) {return; }
     var padding = 5;
-    this.silentSetWidth(Math.max(
+    this.bounds.setWidth(Math.max(
         this.width(),
         this.label.width() + padding * 2
     ));
-    this.silentSetHeight(Math.max(
+    this.bounds.setHeight(Math.max(
         this.height(),
         this.label.height() + padding * 2
     ));
@@ -1818,20 +1816,19 @@ BPM_SymbolMorph.prototype.init = function (
 
 	BPM_SymbolMorph.uber.init.call(this);
 	this.color = color || new Color(0, 0, 0);
-    this.drawNew();
+    this.fixLayout();
 };
 
 // BPM_SymbolMorph displaying:
 
-BPM_SymbolMorph.prototype.drawNew = function () {
-    var ctx, x, y, sx, sy;
-    this.image = newCanvas(new Point(
-        this.symbolWidth() + Math.abs(this.shadowOffset.x),
-        this.size + Math.abs(this.shadowOffset.y)
+BPM_SymbolMorph.prototype.fixLayout = function () {
+    this.bounds.setExtent(new Point(
+        this.symbolWidth(), this.size
     ));
-    this.silentSetWidth(this.image.width);
-    this.silentSetHeight(this.image.height);
-    ctx = this.image.getContext('2d');
+};
+
+BPM_SymbolMorph.prototype.render = function (ctx) {
+    var x, y, sx, sy;
     sx = this.shadowOffset.x < 0 ? 0 : this.shadowOffset.x;
     sy = this.shadowOffset.y < 0 ? 0 : this.shadowOffset.y;
     x = this.shadowOffset.x < 0 ? Math.abs(this.shadowOffset.x) : 0;
@@ -1985,7 +1982,6 @@ BPM_DataMorph.prototype.init = function (labelText) {
         this.color.darker(80) // shadow color
     );
     this.isDraggable = true;
-    this.drawNew();
     this.changed();
     this.createLabel(labelText || 'Data');
     this.fixLayout();
@@ -2021,6 +2017,8 @@ BPM_DataMorph.prototype.layoutChanged = function () {
 };
 
 BPM_DataMorph.prototype.fixLayout = function () {
+    BPM_DataMorph.uber.fixLayout.call(this);
+    if (!this.label) {return; }
     this.label.setCenter(this.center());
     this.label.setTop(this.bottom());
 };
@@ -2178,24 +2176,25 @@ BPM_LiteralMorph.prototype.fullCopy = function () {
 // BPM_LiteralMorph layout
 
 BPM_LiteralMorph.prototype.fixLayout = function () {
-    var padding = 2;
-    this.setWidth(this.label.width() + padding * 2);
-    this.label.setCenter(this.center());
-    this.label.setBottom(this.bottom() - padding);
-};
-
-// BPM_LiteralMorph displaying:
-
-BPM_LiteralMorph.prototype.drawNew = function () {
-    var ctx, x, y, sx, sy;
-    this.image = newCanvas(new Point(
+    this.bounds.setExtent(new Point(
         Math.max(this.width(), this.symbolWidth()) +
             Math.abs(this.shadowOffset.x),
         this.size + Math.abs(this.shadowOffset.y)
     ));
-    this.silentSetWidth(this.image.width);
-    this.silentSetHeight(this.image.height);
-    ctx = this.image.getContext('2d');
+    if (!this.label) {
+        return;
+    }
+    var padding = 2;
+    this.bounds.setWidth(this.label.width() + padding * 2);
+    this.label.setCenter(this.center());
+    this.label.setBottom(this.bottom() - padding);
+    this.changed();
+};
+
+// BPM_LiteralMorph displaying:
+
+BPM_LiteralMorph.prototype.render = function (ctx) {
+    var x, y, sx, sy;
     sx = this.shadowOffset.x < 0 ? 0 : this.shadowOffset.x;
     sy = this.shadowOffset.y < 0 ? 0 : this.shadowOffset.y;
     x = this.shadowOffset.x < 0 ? Math.abs(this.shadowOffset.x) : 0;
@@ -2450,19 +2449,21 @@ BPM_DataFlowMorph.prototype.fixLayout = function () {
     this.path = path;
     this.changed();
     this.bounds = p1.corner(p2).expandBy(this.lineWidth);
-    this.drawNew();
+    this.changed();
+
+    // add shadow
+    this.removeShadow();
+    this.addShadow(new Point(1, 1), 0.5);
 };
 
-BPM_DataFlowMorph.prototype.drawNew = function () {
-    var context, points, i,
+BPM_DataFlowMorph.prototype.render = function (ctx) {
+    var points, i,
         pos = this.position(),
         seg = this.lineWidth * 2;
     if (this.path.length === 0) {return; }
-    this.image = newCanvas(this.extent());
-    context = this.image.getContext('2d');
-    context.strokeStyle = this.color.toString();
-    context.lineWidth = this.lineWidth;
-    context.lineCap = 'round';
+    ctx.strokeStyle = this.color.toString();
+    ctx.lineWidth = this.lineWidth;
+    ctx.lineCap = 'round';
     points = this.path.map(function (pt) {
         return pt.subtract(pos);
     });
@@ -2478,38 +2479,38 @@ BPM_DataFlowMorph.prototype.drawNew = function () {
             dist = parts < 0 ? -seg : seg;
             parts = Math.abs(parts);
             for (count = 1; count < parts; count += 2) {
-                context.beginPath();
-                context.moveTo(
+                ctx.beginPath();
+                ctx.moveTo(
                     startPoint.x + ((count - 1) * dist),
                     startPoint.y
                 );
-                context.lineTo(
+                ctx.lineTo(
                     startPoint.x + (count * dist),
                     startPoint.y
                 );
-                context.stroke();
+                ctx.stroke();
             }
         } else if (startPoint.x === endPoint.x) { // move vertically
             parts = Math.round((endPoint.y - startPoint.y) / seg);
             dist = parts < 0 ? -seg : seg;
             parts = Math.abs(parts);
             for (count = 1; count < parts; count += 2) {
-                context.beginPath();
-                context.moveTo(
+                ctx.beginPath();
+                ctx.moveTo(
                     startPoint.x,
                     startPoint.y + ((count - 1) * dist)
                 );
-                context.lineTo(
+                ctx.lineTo(
                     startPoint.x,
                     startPoint.y + (count * dist)
                 );
-                context.stroke();
+                ctx.stroke();
             }
         } else { // for debugging
-            context.beginPath();
-            context.moveTo(startPoint.x, startPoint.y);
-            context.lineTo(endPoint.x, endPoint.y);
-            context.stroke();
+            ctx.beginPath();
+            ctx.moveTo(startPoint.x, startPoint.y);
+            ctx.lineTo(endPoint.x, endPoint.y);
+            ctx.stroke();
         }
     }
 
@@ -2519,55 +2520,51 @@ BPM_DataFlowMorph.prototype.drawNew = function () {
             drawSegment(i - 1, i);
         }
         // arrow head
-        context.beginPath();
-        context.moveTo(
+        ctx.beginPath();
+        ctx.moveTo(
             points[points.length - 3].x,
             points[points.length - 3].y
         );
-        context.lineTo(
+        ctx.lineTo(
             points[points.length - 2].x,
             points[points.length - 2].y
         );
-        context.stroke();
-        context.moveTo(
+        ctx.stroke();
+        ctx.moveTo(
             points[points.length - 3].x,
             points[points.length - 3].y
         );
-        context.lineTo(
+        ctx.lineTo(
             points[points.length - 1].x,
             points[points.length - 1].y
         );
-        context.stroke();
+        ctx.stroke();
     } else { // output
         // arrow head
-        context.beginPath();
-        context.moveTo(
+        ctx.beginPath();
+        ctx.moveTo(
             points[0].x,
             points[0].y
         );
-        context.lineTo(
+        ctx.lineTo(
             points[1].x,
             points[1].y
         );
-        context.stroke();
-        context.moveTo(
+        ctx.stroke();
+        ctx.moveTo(
             points[0].x,
             points[0].y
         );
-        context.lineTo(
+        ctx.lineTo(
             points[2].x,
             points[2].y
         );
-        context.stroke();
+        ctx.stroke();
         // line
         for (i = 4; i < points.length; i += 1) {
             drawSegment(i - 1, i);
         }
     }
-
-    // add shadow
-    this.removeShadow();
-    this.addShadow(new Point(1, 1), 0.5);
 };
 
 BPM_DataFlowMorph.prototype.startStepping = function () {

@@ -7,7 +7,7 @@
 	written by Jens Mönig
 	jens@moenig.org
 
-	Copyright (C) 2015 by Jens Mönig
+	Copyright (C) 2020 by Jens Mönig
 
 	demo clips:
 	* https://www.youtube.com/watch?v=NxLu3cM4I2Y
