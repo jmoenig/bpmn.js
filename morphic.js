@@ -8,7 +8,7 @@
     written by Jens Mönig
     jens@moenig.org
 
-    Copyright (C) 2010-2020 by Jens Mönig
+    Copyright (C) 2010-2021 by Jens Mönig
 
     This file is part of Snap!.
 
@@ -302,7 +302,7 @@
     -------------------
     If you wish to create a web page with more than one world, make
     sure to prevent each world from auto-filling the whole page and
-    include    it in the main loop. It's also a good idea to give each
+    include it in the main loop. It's also a good idea to give each
     world its own tabindex:
 
     example html file:
@@ -471,6 +471,8 @@
         mouseLeave
         mouseEnterDragging
         mouseLeaveDragging
+        mouseEnterBounds
+        mouseLeaveBounds
         mouseMove
         mouseScroll
 
@@ -479,7 +481,7 @@
 
         MyMorph.prototype.mouseMove = function(pos) {};
 
-    All of these methods have as optional parameter a Point object
+    Most of these methods have as optional parameter a Point object
     indicating the current position of the Hand inside the World's
     coordinate system. The
 
@@ -488,6 +490,16 @@
     event method has an additional optional parameter indicating the
     currently pressed mouse button, which is either 'left' or 'right'.
     You can use this to let users interact with 3D environments.
+
+    The
+
+        mouseEnterDragging(morph)
+        mouseLeaveDragging(morph)
+        mouseEnterBounds(morph)
+        mouseLeaveBounds(morph)
+
+    event methods have as optional parameter the morph currently dragged by
+    the Hand, if any.
 
     Events may be "bubbled" up a morph's owner chain by calling
 
@@ -1259,7 +1271,7 @@
     Michael Ball found and fixed a longstanding scrolling bug.
     Brian Harvey contributed to the design and implementation of submenus.
     Ken Kahn contributed to Chinese keboard entry and Android support.
-    Brian Broll contributed clickable URLs in text elements.
+    Brian Broll contributed clickable URLs in text elements and many bugfixes.
 
     - Jens Mönig
 */
@@ -1268,13 +1280,14 @@
 
 /*global window, HTMLCanvasElement, FileReader, Audio, FileList, Map*/
 
-var morphicVersion = '2020-July-10';
+var morphicVersion = '2021-February-10';
 var modules = {}; // keep track of additional loaded modules
 var useBlurredShadows = true;
 
 const ZERO = new Point();
 const BLACK = new Color();
 const WHITE = new Color(255, 255, 255);
+const CLEAR = new Color(0, 0, 0, 0);
 
 Object.freeze(ZERO);
 Object.freeze(BLACK);
@@ -2293,6 +2306,14 @@ Color.prototype.inverted = function () {
         255 - this.r,
         255 - this.g,
         255 - this.b
+    );
+};
+
+Color.prototype.solid = function () {
+    return new Color(
+        this.r,
+        this.g,
+        this.b
     );
 };
 
@@ -3459,13 +3480,18 @@ Morph.prototype.getImage = function () {
 };
 
 Morph.prototype.render = function (aContext) {
-    aContext.fillStyle = this.color.toString();
+    aContext.fillStyle = this.getRenderColor().toString();
     aContext.fillRect(0, 0, this.width(), this.height());
     if (this.cachedTexture) {
         this.renderCachedTexture(aContext);
     } else if (this.texture) {
         this.renderTexture(this.texture, aContext);
     }
+};
+
+Morph.prototype.getRenderColor = function () {
+    // can be overriden by my heirs or instances
+    return this.color;
 };
 
 Morph.prototype.fixLayout = function () {
@@ -4158,7 +4184,8 @@ Morph.prototype.prompt = function (
     width,
     floorNum,
     ceilingNum,
-    isRounded
+    isRounded,
+    action = nop
 ) {
     var menu, entryField, slider, isNumeric;
     if (ceilingNum) {
@@ -4202,6 +4229,7 @@ Morph.prototype.prompt = function (
                 entryField.text.fixLayout();
                 entryField.text.changed();
                 entryField.text.edit();
+                action(Math.round(num));
             };
         } else {
             slider.action = (num) => {
@@ -4209,6 +4237,7 @@ Morph.prototype.prompt = function (
                 entryField.text.text = num.toString();
                 entryField.text.fixLayout();
                 entryField.text.changed();
+                action(num);
             };
         }
         menu.items.push(slider);
@@ -4216,7 +4245,13 @@ Morph.prototype.prompt = function (
 
     menu.addLine(2);
     menu.addItem('Ok', () => entryField.string());
-    menu.addItem('Cancel', () => null);
+    menu.addItem(
+        'Cancel',
+        () => {
+            action(defaultContents);
+            return null;
+        }
+    );
     menu.isDraggable = true;
     menu.popUpAtHand(this.world());
     entryField.text.edit();
@@ -4436,12 +4471,12 @@ Morph.prototype.setAlphaScaled = function (alpha) {
     var newAlpha, unscaled;
     if (typeof alpha === 'number') {
         unscaled = alpha / 100;
-        this.alpha = Math.min(Math.max(unscaled, 0.1), 1);
+        this.alpha = Math.min(Math.max(unscaled, 0), 1);
     } else {
         newAlpha = parseFloat(alpha);
         if (!isNaN(newAlpha)) {
             unscaled = newAlpha / 100;
-            this.alpha = Math.min(Math.max(unscaled, 0.1), 1);
+            this.alpha = Math.min(Math.max(unscaled, 0), 1);
         }
     }
     this.changed();
@@ -5602,19 +5637,24 @@ CursorMorph.prototype.processInput = function (event) {
     // filter invalid chars for numeric fields
     function filterText (content) {
         var points = 0,
+            hasE = false,
             result = '',
             i, ch, valid;
         for (i = 0; i < content.length; i += 1) {
             ch = content.charAt(i);
             valid = (
                 ('0' <= ch && ch <= '9') || // digits
-                (i === 0 && ch === '-')  || // leading '-'
+                (ch.toLowerCase() === 'e') || // scientific notation
+                ((i === 0 || hasE) && ch === '-')  || // leading '-' or sc. not.
                 (ch === '.' && points === 0) // at most '.'
             );
             if (valid) {
                 result += ch;
                 if (ch === '.') {
                     points += 1;
+                }
+                if (ch.toLowerCase() === 'e') {
+                    hasE = true;
                 }
             }
         }
@@ -6963,9 +7003,9 @@ SliderMorph.uber = CircleBoxMorph.prototype;
 
 function SliderMorph(start, stop, value, size, orientation, color) {
     this.init(
-        start || 1,
+        start || 0,
         stop || 100,
-        value || 50,
+        value || 0,
         size || 10,
         orientation || 'vertical',
         color
@@ -7926,7 +7966,7 @@ MenuMorph.prototype.addItem = function (
     */
     this.items.push([
         verbatim ? labelString || 'close' : localize(labelString || 'close'),
-        action || nop,
+        action === 0 ? 0 : action || nop,
         hint,
         color,
         bold || false,
@@ -8490,6 +8530,11 @@ StringMorph.prototype.font = function () {
         this.fontStyle;
 };
 
+StringMorph.prototype.getShadowRenderColor = function () {
+    // answer the shadow rendering color, can be overridden for my children
+    return this.shadowColor;
+};
+
 StringMorph.prototype.fixLayout = function (justMe) {
     // determine my extent depending on my current settings
     var width,
@@ -8520,6 +8565,7 @@ StringMorph.prototype.fixLayout = function (justMe) {
 StringMorph.prototype.render = function (ctx) {
     var start, stop, i, p, c, x, y,
         shadowOffset = this.shadowOffset || ZERO,
+        shadowColor = this.getShadowRenderColor(),
         txt = this.isPassword ?
                 this.password('*', this.text.length) : this.text;
 
@@ -8529,17 +8575,17 @@ StringMorph.prototype.render = function (ctx) {
     ctx.textBaseline = 'bottom';
 
     // first draw the shadow, if any
-    if (this.shadowColor) {
+    if (shadowColor) {
         x = Math.max(shadowOffset.x, 0);
         y = Math.max(shadowOffset.y, 0);
-        ctx.fillStyle = this.shadowColor.toString();
+        ctx.fillStyle = shadowColor.toString();
         ctx.fillText(txt, x, fontHeight(this.fontSize) + y);
     }
 
     // now draw the actual text
     x = Math.abs(Math.min(shadowOffset.x, 0));
     y = Math.abs(Math.min(shadowOffset.y, 0));
-    ctx.fillStyle = this.color.toString();
+    ctx.fillStyle = this.getRenderColor().toString();
 
     if (this.isShowingBlanks) {
         this.renderWithBlanks(
@@ -8598,7 +8644,7 @@ StringMorph.prototype.renderWithBlanks = function (ctx, startX, y) {
         }
         isFirst = false;
         if (word !== '') {
-            ctx.fillStyle = this.color.toString();
+            ctx.fillStyle = this.getRenderColor().toString();
             ctx.fillText(word, x, y);
             x += ctx.measureText(word).width;
         }
@@ -9251,6 +9297,7 @@ TextMorph.prototype.fixLayout = function () {
 TextMorph.prototype.render = function (ctx) {
     var shadowWidth = Math.abs(this.shadowOffset.x),
         shadowHeight = Math.abs(this.shadowOffset.y),
+        shadowColor = this.getShadowRenderColor(),
         i, line, width, offx, offy, x, y, start, stop, p, c;
 
     // prepare context for drawing text
@@ -9265,10 +9312,10 @@ TextMorph.prototype.render = function (ctx) {
     }
 
     // draw the shadow, if any
-    if (this.shadowColor) {
+    if (shadowColor) {
         offx = Math.max(this.shadowOffset.x, 0);
         offy = Math.max(this.shadowOffset.y, 0);
-        ctx.fillStyle = this.shadowColor.toString();
+        ctx.fillStyle = shadowColor.toString();
 
         for (i = 0; i < this.lines.length; i = i + 1) {
             line = this.lines[i];
@@ -9289,7 +9336,7 @@ TextMorph.prototype.render = function (ctx) {
     // now draw the actual text
     offx = Math.abs(Math.min(this.shadowOffset.x, 0));
     offy = Math.abs(Math.min(this.shadowOffset.y, 0));
-    ctx.fillStyle = this.color.toString();
+    ctx.fillStyle = this.getRenderColor().toString();
 
     for (i = 0; i < this.lines.length; i = i + 1) {
         line = this.lines[i];
@@ -9318,6 +9365,9 @@ TextMorph.prototype.render = function (ctx) {
         ctx.fillText(c, p.x, p.y + fontHeight(this.fontSize));
     }
 };
+
+TextMorph.prototype.getShadowRenderColor =
+    StringMorph.prototype.getShadowRenderColor;
 
 TextMorph.prototype.setExtent = function (aPoint) {
     this.maxWidth = Math.max(aPoint.x, 0);
@@ -9393,7 +9443,7 @@ TextMorph.prototype.slotAt = function (aPoint) {
         charX = 0;
     }
     columnLength = this.lines[row - 1].length;
-    while (col < columnLength - 2 && aPoint.x - this.left() > charX) {
+    while (col < columnLength - 1 && aPoint.x - this.left() > charX) {
         charX += ctx.measureText(this.lines[row - 1][col]).width;
         col += 1;
     }
@@ -9679,7 +9729,7 @@ TriggerMorph.prototype.init = function (
 ) {
     // additional properties:
     this.target = target || null;
-    this.action = action || null;
+    this.action = action === 0 ? 0 : action|| null;
     this.doubleClickAction = doubleClickAction || null;
     this.environment = environment || null;
     this.labelString = labelString || ' ';
@@ -10700,7 +10750,7 @@ ListMorph.prototype = new ScrollFrameMorph();
 ListMorph.prototype.constructor = ListMorph;
 ListMorph.uber = ScrollFrameMorph.prototype;
 
-function ListMorph(elements, labelGetter, format, doubleClickAction) {
+function ListMorph(elements, labelGetter, format, onDoubleClick, separator) {
 /*
     passing a format is optional. If the format parameter is specified
     it has to be of the following pattern:
@@ -10733,7 +10783,8 @@ function ListMorph(elements, labelGetter, format, doubleClickAction) {
             return element.toString();
         },
         format || [],
-        doubleClickAction // optional callback
+        onDoubleClick, // optional callback
+        separator // string indicating a horizontal line between items
     );
 }
 
@@ -10741,7 +10792,8 @@ ListMorph.prototype.init = function (
     elements,
     labelGetter,
     format,
-    doubleClickAction
+    onDoubleClick,
+    separator
 ) {
     ListMorph.uber.init.call(this);
 
@@ -10756,7 +10808,8 @@ ListMorph.prototype.init = function (
     this.selected = null; // actual element currently selected
     this.active = null; // menu item representing the selected element
     this.action = null;
-    this.doubleClickAction = doubleClickAction || null;
+    this.doubleClickAction = onDoubleClick || null;
+    this.separator = separator || '';
     this.acceptsDrops = false;
     this.buildListContents();
 };
@@ -10776,7 +10829,8 @@ ListMorph.prototype.buildListContents = function () {
     this.elements.forEach(element => {
         var color = null,
             bold = false,
-            italic = false;
+            italic = false,
+            label;
 
         this.format.forEach(pair => {
             if (pair[1].call(null, element)) {
@@ -10789,15 +10843,23 @@ ListMorph.prototype.buildListContents = function () {
                 }
             }
         });
-        this.listContents.addItem(
-            this.labelGetter(element), // label string
-            element, // action
-            null, // hint
-            color,
-            bold,
-            italic,
-            this.doubleClickAction
-        );
+
+        label = this.labelGetter(element);
+        if (label === this.separator) {
+            this.listContents.addLine();
+        } else {
+            this.listContents.addItem(
+                label, // label string
+                element, // action
+                null, // hint
+                color,
+                bold,
+                italic,
+                this.doubleClickAction,
+                null, // shortcut
+                true // verbatim - don't translate
+            );
+        }
     });
     this.listContents.isListContents = true;
     this.listContents.createItems();
@@ -11049,6 +11111,7 @@ HandMorph.prototype.init = function (aWorld) {
     this.world = aWorld;
     this.mouseButton = null;
     this.mouseOverList = [];
+    this.mouseOverBounds = [];
     this.morphToGrab = null;
     this.grabPosition = null;
     this.grabOrigin = null;
@@ -11103,7 +11166,7 @@ HandMorph.prototype.fullDrawOn = function (ctx, rect) {
 
     if (!clipped.extent().gt(ZERO)) {return; }
     ctx.save();
-    ctx.globalAlpha = this.children[0].alpha;
+    ctx.globalAlpha = this.alpha;
     pic = this.cachedFullImage;
     src = clipped.translateBy(pos.neg());
     sl = src.left();
@@ -11133,7 +11196,10 @@ HandMorph.prototype.morphAtPointer = function () {
 
 HandMorph.prototype.allMorphsAtPointer = function () {
     return this.world.allChildren().filter(m => m.isVisible &&
-        m.visibleBounds().containsPoint(this.bounds.origin));
+        m.visibleBounds().containsPoint(this.bounds.origin) &&
+        !m.holes.some(any =>
+            any.translateBy(m.position()).containsPoint(this.bounds.origin))
+        );
 };
 
 // HandMorph dragging and dropping:
@@ -11163,11 +11229,11 @@ HandMorph.prototype.grab = function (aMorph) {
     if (this.children.length === 0) {
         this.world.stopEditing();
         this.grabOrigin = aMorph.situation();
-        if (!aMorph.noDropShadow) {
-            aMorph.addShadow();
-        }
         if (aMorph.prepareToBeGrabbed) {
             aMorph.prepareToBeGrabbed(this);
+        }
+        if (!aMorph.noDropShadow) {
+            aMorph.addShadow();
         }
         this.add(aMorph);
 
@@ -11184,6 +11250,7 @@ HandMorph.prototype.grab = function (aMorph) {
 
 HandMorph.prototype.drop = function () {
     var target, morphToDrop;
+    this.alpha = 1;
     if (this.children.length !== 0) {
         morphToDrop = this.children[0];
         target = this.dropTargetFor(morphToDrop);
@@ -11223,13 +11290,25 @@ HandMorph.prototype.drop = function () {
         mouseLeave
         mouseEnterDragging
         mouseLeaveDragging
+        mouseEnterBounds
+        mouseLeaveBounds
         mouseMove
         mouseScroll
 */
 
 HandMorph.prototype.processMouseDown = function (event) {
-    var morph, actualClick;
+    var morph, actualClick,
+        posInDocument = getDocumentPositionOf(this.world.worldCanvas);
 
+    // update my position, in case I've just been initialized
+    if (event.pageX) {
+        this.setPosition(new Point(
+            event.pageX - posInDocument.x,
+            event.pageY - posInDocument.y
+        ));
+    }
+
+    // process the actual event
     this.destroyTemporaries();
     this.contextMenuEnabled = true;
     this.morphToGrab = null;
@@ -11368,6 +11447,7 @@ HandMorph.prototype.processMouseMove = function (event) {
     var pos,
         posInDocument = getDocumentPositionOf(this.world.worldCanvas),
         mouseOverNew,
+        mouseOverBoundsNew,
         morph,
         topMorph;
 
@@ -11379,8 +11459,12 @@ HandMorph.prototype.processMouseMove = function (event) {
     this.setPosition(pos);
 
     // determine the new mouse-over-list:
-    // mouseOverNew = this.allMorphsAtPointer();
     mouseOverNew = this.morphAtPointer().allParents();
+    mouseOverBoundsNew = mouseOverNew.filter(m => m.isVisible &&
+        m.visibleBounds().containsPoint(this.bounds.origin) &&
+            !m.holes.some(any =>
+                any.translateBy(m.position()).containsPoint(this.bounds.origin))
+    );
 
     if (!this.children.length && this.mouseButton) {
         topMorph = this.morphAtPointer();
@@ -11417,13 +11501,28 @@ HandMorph.prototype.processMouseMove = function (event) {
         }
     }
 
+    this.mouseOverBounds.forEach(old => {
+        if (!contains(mouseOverBoundsNew, old)) {
+            if (old.mouseLeaveBounds) {
+                old.mouseLeaveBounds(this.children[0]);
+            }
+        }
+    });
+    mouseOverBoundsNew.forEach(newMorph => {
+        if (!contains(this.mouseOverBounds, newMorph)) {
+            if (newMorph.mouseEnterBounds) {
+                newMorph.mouseEnterBounds(this.children[0]);
+            }
+        }
+    });
+
     this.mouseOverList.forEach(old => {
         if (!contains(mouseOverNew, old)) {
             if (old.mouseLeave) {
                 old.mouseLeave();
             }
             if (old.mouseLeaveDragging && this.mouseButton) {
-                old.mouseLeaveDragging();
+                old.mouseLeaveDragging(this.children[0]);
             }
         }
     });
@@ -11433,7 +11532,7 @@ HandMorph.prototype.processMouseMove = function (event) {
                 newMorph.mouseEnter();
             }
             if (newMorph.mouseEnterDragging && this.mouseButton) {
-                newMorph.mouseEnterDragging();
+                newMorph.mouseEnterDragging(this.children[0]);
             }
         }
 
@@ -11454,6 +11553,7 @@ HandMorph.prototype.processMouseMove = function (event) {
         }
     });
     this.mouseOverList = mouseOverNew;
+    this.mouseOverBounds = mouseOverBoundsNew;
 };
 
 HandMorph.prototype.processMouseScroll = function (event) {
@@ -11909,11 +12009,13 @@ WorldMorph.prototype.initKeyboardHandler = function () {
     kbd = document.createElement('textarea');
     kbd.setAttribute('id', 'morphic_keyboard');
     kbd.setAttribute('style', 'caret-color:transparent;');
+    kbd.style.position = 'absolute';
+    kbd.style.overflow = "hidden";
+    kbd.style.border = 'none';
+    kbd.style.resize = 'none';
+    kbd.wrap = "off";
     kbd.world = this;
     kbd.style.zIndex = -1;
-    kbd.style.position = 'absolute';
-    kbd.wrap = "off";
-    kbd.style.overflow = "hidden";
     kbd.autofocus = true;
     document.body.appendChild(kbd);
     this.keyboardHandler = kbd;
@@ -11942,7 +12044,7 @@ WorldMorph.prototype.initKeyboardHandler = function () {
             }
             // suppress cmd-d/f/i/p/s override
             if ((event.ctrlKey || event.metaKey) &&
-                    'dfips'.includes(event.key)) {
+                    'dfiops'.includes(event.key)) {
                 event.preventDefault();
             }
         },
@@ -12492,6 +12594,7 @@ WorldMorph.prototype.edit = function (aStringOrTextMorph) {
     this.cursor = new CursorMorph(aStringOrTextMorph, this.keyboardHandler);
     this.keyboardFocus = this.cursor;
     aStringOrTextMorph.parent.add(this.cursor);
+    this.cursor.rerender();
     if (MorphicPreferences.useSliderForInput) {
         if (!aStringOrTextMorph.parentThatIsA(MenuMorph)) {
             this.slide(aStringOrTextMorph);
@@ -12534,6 +12637,7 @@ WorldMorph.prototype.slide = function (aStringOrTextMorph) {
     slider.action = (num) => {
         aStringOrTextMorph.changed();
         aStringOrTextMorph.text = Math.round(num).toString();
+        aStringOrTextMorph.fixLayout();
         aStringOrTextMorph.rerender();
         aStringOrTextMorph.escalateEvent(
             'reactToSliderEdit',
