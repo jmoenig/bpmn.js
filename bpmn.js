@@ -8,7 +8,7 @@
 	written by Jens Mönig
 	jens@moenig.org
 
-	Copyright (C) 2020 by Jens Mönig
+	Copyright (C) 2021 by Jens Mönig
 
 	bpmn.js is free software: you can redistribute it and/or modify
 	it under the terms of the GNU Affero General Public License as
@@ -75,7 +75,7 @@ isNil, Morph, newCanvas, radians, nop, detect, StringMorph*/
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.bpmn = '2020-July-11';
+modules.bpmn = '2021-February-19';
 
 var BPM_AnchorMorph;
 var BPM_EventMorph;
@@ -1113,6 +1113,7 @@ BPM_SequenceFlowMorph.prototype.init = function (source, target) {
     this.lineWidth = 4;
 
 	BPM_SequenceFlowMorph.uber.init.call(this);
+    this.isFreeForm = true;
 	this.color = new Color(255, 255, 255);
     this.alpha = 0.7;
     this.fixLayout();
