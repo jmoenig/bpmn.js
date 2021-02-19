@@ -481,6 +481,7 @@ BPM_TaskMorph.prototype.reactToEdit = function () {
     this.label.changed();
 };
 
+/*
 BPM_TaskMorph.prototype.mouseEnter = function () {
     var menu;
     if (this.world().isDevMode) {return; }
@@ -489,6 +490,7 @@ BPM_TaskMorph.prototype.mouseEnter = function () {
     menu.popup(this.world(), this.topRight().add(new Point(5, 0)));
     this.tweakMenu(menu);
 };
+*/
 
 BPM_TaskMorph.prototype.mouseLeave = function () {
     var menu;
