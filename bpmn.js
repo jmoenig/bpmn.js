@@ -75,7 +75,7 @@ isNil, Morph, newCanvas, radians, nop, detect, StringMorph*/
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.bpmn = '2021-February-19';
+modules.bpmn = '2021-February-20';
 
 var BPM_AnchorMorph;
 var BPM_EventMorph;
@@ -993,7 +993,10 @@ BPM_EventMorph.prototype.userMenu = function () {
 };
 
 BPM_EventMorph.prototype.addLane = function () {
-    new BPM_LaneMorph().pickUp(this.world());
+    var world = this.world(),
+        lane = new BPM_LaneMorph();
+    lane.setWidth(world.width() * 0.8);
+    lane.pickUp(this.world());
 };
 
 BPM_EventMorph.prototype.addData = function () {
@@ -1711,7 +1714,7 @@ BPM_LaneMorph.prototype.init = function (labelText) {
 	this.color = new Color(0, 27, 81);
     this.alpha = 0.2;
     this.createLabel(labelText || 'Lane');
-    this.setExtent(new Point(900, 80));
+    this.setExtent(new Point(900, 100));
     this.fixLayout();
 };
 
