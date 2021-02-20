@@ -215,11 +215,13 @@ BPM_TaskMorph.prototype.layoutChanged = function () {
 };
 
 BPM_TaskMorph.prototype.fixLayout = function () {
-    this.setExtent(new Point(
+    this.changed();
+    this.bounds.setExtent(new Point(
         this.label.width() + this.edge * 2,
         this.label.height() + this.edge * 2
     ));
     this.label.setCenter(this.center());
+    this.rerender();
 };
 
 BPM_TaskMorph.prototype.userMenu = function () {
@@ -637,12 +639,14 @@ BPM_GatewayMorph.prototype.fixLayout = function () {
         h = Math.tan(radians(angle)) * (this.label.width() / 2),
         w = Math.tan(radians(90 - angle)) * (this.label.height() / 2);
 
-    this.setExtent(new Point(
+    this.changed();
+    this.bounds.setExtent(new Point(
         this.label.width() + w * 2 + this.edge * 2,
         this.label.height() + h * 2 + this.edge * 2
     ));
     this.label.setCenter(this.center());
     this.setCenter(center);
+    this.rerender();
 };
 
 BPM_GatewayMorph.prototype.userMenu = function () {
@@ -800,11 +804,13 @@ function BPM_ParallelGatewayMorph() {
 
 BPM_ParallelGatewayMorph.prototype.fixLayout = function () {
     var padding = 4;
-    this.setExtent(new Point(
+    this.changed();
+    this.bounds.setExtent(new Point(
         this.label.width() + padding + this.edge * 2,
         this.label.height() + padding + this.edge * 2
     ));
     this.label.setCenter(this.center());
+    this.rerender();
 };
 
 BPM_ParallelGatewayMorph.prototype.init = function () {
@@ -1732,6 +1738,7 @@ BPM_LaneMorph.prototype.layoutChanged = function () {
 BPM_LaneMorph.prototype.fixLayout = function () {
     if (!this.label) {return; }
     var padding = 5;
+    this.changed();
     this.bounds.setWidth(Math.max(
         this.width(),
         this.label.width() + padding * 2
@@ -1742,6 +1749,7 @@ BPM_LaneMorph.prototype.fixLayout = function () {
     ));
     this.label.setCenter(this.center());
     this.label.setLeft(this.left() + padding);
+    this.rerender();
 };
 
 BPM_LaneMorph.prototype.userMenu = function () {
@@ -1828,9 +1836,11 @@ BPM_SymbolMorph.prototype.init = function (
 // BPM_SymbolMorph displaying:
 
 BPM_SymbolMorph.prototype.fixLayout = function () {
+    this.changed();
     this.bounds.setExtent(new Point(
         this.symbolWidth(), this.size
     ));
+    this.rerender();
 };
 
 BPM_SymbolMorph.prototype.render = function (ctx) {
@@ -2182,6 +2192,7 @@ BPM_LiteralMorph.prototype.fullCopy = function () {
 // BPM_LiteralMorph layout
 
 BPM_LiteralMorph.prototype.fixLayout = function () {
+    this.changed();
     this.bounds.setExtent(new Point(
         Math.max(this.width(), this.symbolWidth()) +
             Math.abs(this.shadowOffset.x),
