@@ -17,8 +17,7 @@
                 frame.reactToWorldResize = function (rect) {
                     frame.changed();
                     frame.bounds = rect;
-                    frame.drawNew();
-                    frame.changed();
+                    frame.rerender();
                 }
                 world.add(frame);
                 start = new BPM_EventMorph('start');
