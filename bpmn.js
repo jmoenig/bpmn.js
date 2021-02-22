@@ -75,7 +75,7 @@ isNil, Morph, newCanvas, radians, nop, detect, StringMorph*/
 
 // Global stuff ////////////////////////////////////////////////////////
 
-modules.bpmn = '2021-February-20';
+modules.bpmn = '2021-February-22';
 
 var BPM_AnchorMorph;
 var BPM_EventMorph;
@@ -146,7 +146,13 @@ BPM_AnchorMorph.prototype.justDropped = function () {
     if (!(this.parent instanceof BPM_TaskMorph ||
             this.parent instanceof BPM_EventMorph ||
             this.parent instanceof BPM_GatewayMorph)) {
-        this.flow.source.disconnectOutbound();
+        if (this.flow.source !== this) {
+            try {
+                this.flow.source.disconnectOutbound();
+            } catch(err) {
+                nop(err); // under construction
+            }
+        }
         this.flow.target = null;
         this.flow.destroy();
         this.destroy();
