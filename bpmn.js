@@ -851,6 +851,18 @@ BPM_ParallelGatewayMorph.prototype.userMenu = function () {
         menu.addLine();
         menu.addItem('disconnect all forks', 'disconnectOutbound');
     }
+    menu.addLine();
+    menu.addItem('add input...', 'addInput');
+    menu.addItem('add output...', 'addOutput');
+    if (this.inputs.length + this.outputs.length > 0) {
+        menu.addLine();
+        if (this.inputs.length > 0) {
+            menu.addItem('disconnect inputs', 'disconnectInputs');
+        }
+        if (this.outputs.length > 0) {
+            menu.addItem('disconnect outputs', 'disconnectOutputs');
+        }
+    }
 	return menu;
 };
 
